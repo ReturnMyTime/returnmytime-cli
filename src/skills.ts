@@ -197,19 +197,22 @@ export async function discoverSkills(basePath: string, subpath?: string): Promis
     await collectSkillsFromRoot(join(searchPath, skillsRoot), seenSlugs, skills);
   }
 
-  // Priority 2: repo /skills
+  // Priority 2: repo /skill-packs
+  await collectSkillsFromRoot(join(searchPath, 'skill-packs'), seenSlugs, skills);
+
+  // Priority 3: repo /skills
   await collectSkillsFromRoot(join(searchPath, 'skills'), seenSlugs, skills);
 
-  // Priority 3: plugins/*/skills
+  // Priority 4: plugins/*/skills
   const pluginRoots = await listPluginSkillRoots(searchPath);
   for (const root of pluginRoots) {
     await collectSkillsFromRoot(root, seenSlugs, skills);
   }
 
-  // Priority 4: .claude-plugin
+  // Priority 5: .claude-plugin
   await collectSkillsFromRoot(join(searchPath, '.claude-plugin'), seenSlugs, skills);
 
-  // Priority 5: known agent directories
+  // Priority 6: known agent directories
   const agentRoots = [
     join(searchPath, '.adal/skills'),
     join(searchPath, '.agent/skills'),

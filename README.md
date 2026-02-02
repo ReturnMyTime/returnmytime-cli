@@ -28,19 +28,19 @@ Works with **OpenCode**, **Claude Code**, **Codex**, **Cursor**, plus many more.
 npx returnmytime
 ```
 
-2) Install skills from the default repo:
+2) Find skills (Enter = fast search, Tab = semantic):
 ```bash
-npx returnmytime add skill /Users/nick/Projects/returnmytime-skills
+npx returnmytime find skill
 ```
 
-3) Install a single skill:
+3) Install skills directly from the ReturnMyTime skills repo:
 ```bash
-npx returnmytime add skill /Users/nick/Projects/returnmytime-skills --skill frontend-design
+npx returnmytime add skill https://github.com/ReturnMyTime/skills
 ```
 
-4) Install private skills from a zip:
+4) Install a single skill:
 ```bash
-npx returnmytime add skill ./private-skills.zip
+npx returnmytime add skill https://github.com/ReturnMyTime/skills --skill atomic-implementation-plan
 ```
 
 ---
@@ -55,11 +55,10 @@ npx returnmytime
 
 You’ll get an interactive menu to add, find, list, manage, and update skills.
 
-### 2) Install globally (optional)
+### 2) Find skills
 
 ```bash
-npm i -g returnmytime
-returnmytime --help
+npx returnmytime find skill
 ```
 
 ### 3) Add skills from the default repo
@@ -67,28 +66,36 @@ returnmytime --help
 By default, returnmytime points to:
 
 ```text
-/Users/nick/Projects/returnmytime-skills
+https://github.com/ReturnMyTime/skills
 ```
 
 Install all skills from that repo:
 
 ```bash
-npx returnmytime add skill /Users/nick/Projects/returnmytime-skills
+npx returnmytime add skill https://github.com/ReturnMyTime/skills
 ```
 
 Install a single skill:
 
 ```bash
-npx returnmytime add skill /Users/nick/Projects/returnmytime-skills --skill frontend-design
+npx returnmytime add skill https://github.com/ReturnMyTime/skills --skill atomic-implementation-plan
 ```
 
-### 4) Override the default repo (optional)
+### 4) Install globally (optional)
 
 ```bash
-RETURNMYTIME_SKILLS_REPO=owner/repo npx returnmytime add skill
+npm i -g returnmytime
+returnmytime --help
 ```
 
-### 5) Install private skills from a zip
+### 5) Override the default repo (optional)
+
+```bash
+RETURNMYTIME_SKILLS_REPO=https://github.com/ReturnMyTime/skills npx returnmytime add skill
+# Replace with another repo or URL to override the default.
+```
+
+### 6) Install private skills from a zip
 
 ```bash
 npx returnmytime add skill ./private-skills.zip
@@ -303,6 +310,7 @@ The CLI searches for skills in these locations within a repository:
 
 <!-- skill-discovery:start -->
 - Root directory (if it contains `SKILL.md`)
+- `skill-packs/`
 - `skills/`
 - `skills/.curated/`
 - `skills/.experimental/`
@@ -356,11 +364,11 @@ This CLI collects anonymous usage data to help improve the tool. No personal inf
 To disable telemetry, set any of these environment variables:
 
 ```bash
-DISABLE_TELEMETRY=1 returnmytime add skill anthropics/skills
+DISABLE_TELEMETRY=1 returnmytime add skill https://github.com/ReturnMyTime/skills
 # or
-DO_NOT_TRACK=1 returnmytime add skill anthropics/skills
+DO_NOT_TRACK=1 returnmytime add skill https://github.com/ReturnMyTime/skills
 # or
-RETURNMYTIME_DISABLE_TELEMETRY=1 returnmytime add skill anthropics/skills
+RETURNMYTIME_DISABLE_TELEMETRY=1 returnmytime add skill https://github.com/ReturnMyTime/skills
 ```
 
 Telemetry is also automatically disabled in CI environments.

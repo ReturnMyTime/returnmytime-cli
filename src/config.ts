@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const DEFAULT_SKILLS_REPO = '/Users/nick/Projects/returnmytime-skills';
+const DEFAULT_SKILLS_REPO = 'https://github.com/ReturnMyTime/skills';
 
 export function getDefaultSkillsSource(): string {
   return process.env.RETURNMYTIME_SKILLS_REPO?.trim() || DEFAULT_SKILLS_REPO;
