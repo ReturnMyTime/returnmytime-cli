@@ -83,6 +83,9 @@ export type FindSkillResult = {
   tags: string[] | null;
   isOfficial: boolean;
   localRepoPath?: string | null;
+  sourceType?: MarketplaceSkillOrigin['sourceType'];
+  sourceUrl?: string | null;
+  ref?: string;
 };
 
 export type FindSkillState = {

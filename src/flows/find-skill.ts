@@ -1,12 +1,13 @@
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import type { MarketplaceSkillOrigin } from '../commands/types.js';
-import { getLocalSkillsRepo } from '../config.js';
+import { getDefaultSkillsSource } from '../config.js';
 import { cleanupTempDir, cloneRepoTo } from '../git.js';
 import { searchSkills } from '../returnmytime-api.js';
 import { discoverSkills, getSkillDisplayName } from '../skills.js';
+import { getOwnerRepo, parseSource } from '../source-parser.js';
 import { registerTempDir } from '../temp-registry.js';
 import type { FindSkillMode, FindSkillResult } from '../tui/types.js';
 import type { Skill } from '../types.js';
@@ -18,6 +19,17 @@ export type SearchOutcome = {
 };
 
 type LocalScore = { score: number; skill: Skill };
+
+type SearchContext = {
+  repoPath: string;
+  repoOwner: string | null;
+  repoName: string | null;
+  sourceType: MarketplaceSkillOrigin['sourceType'];
+  sourceUrl: string;
+  source: string;
+  ref?: string;
+  subpath?: string;
+};
 
 const normalizeText = (value: string) => value.toLowerCase();
 
@@ -45,11 +57,11 @@ function scoreSkill(skill: Skill, query: string, tokens: string[]): number {
 }
 
 async function searchLocalSkills(
-  repoPath: string,
+  context: SearchContext,
   query: string,
   limit: number
 ): Promise<FindSkillResult[]> {
-  const skills = await discoverSkills(repoPath);
+  const skills = await discoverSkills(context.repoPath, context.subpath);
   const tokens = tokenize(query);
   if (tokens.length === 0) return [];
 
@@ -62,8 +74,12 @@ async function searchLocalSkills(
     return a.skill.name.localeCompare(b.skill.name);
   });
 
+  const isOfficial =
+    context.repoOwner?.toLowerCase() === 'returnmytime' &&
+    context.repoName?.toLowerCase() === 'skills';
+
   return scored.slice(0, limit).map((entry, index) => {
-    const relDir = relative(repoPath, entry.skill.path).replace(/\\/g, '/');
+    const relDir = relative(context.repoPath, entry.skill.path).replace(/\\/g, '/');
     const pathValue = relDir ? `${relDir}/SKILL.md` : 'SKILL.md';
     const slug = basename(entry.skill.path).toLowerCase();
     return {
@@ -71,32 +87,112 @@ async function searchLocalSkills(
       name: entry.skill.name,
       description: entry.skill.description ?? null,
       shortDescription: entry.skill.description ?? null,
-      repoOwner: 'returnmytime',
-      repoName: 'skills',
+      repoOwner: context.repoOwner,
+      repoName: context.repoName,
       path: pathValue,
       skillSlug: slug,
       primaryLanguage: null,
       stars: null,
       tags: null,
-      isOfficial: true,
-      localRepoPath: repoPath,
+      isOfficial,
+      localRepoPath: context.repoPath,
+      sourceType: context.sourceType,
+      sourceUrl: context.sourceUrl,
+      ref: context.ref,
     };
   });
+}
+
+const cloneCache = new Map<string, Promise<string>>();
+
+function isLocalDirectory(pathValue: string): boolean {
+  try {
+    const stats = statSync(pathValue, { throwIfNoEntry: false });
+    return Boolean(stats?.isDirectory());
+  } catch {
+    return false;
+  }
+}
+
+async function getCachedClone(sourceUrl: string, ref?: string): Promise<string> {
+  const key = ref ? `${sourceUrl}#${ref}` : sourceUrl;
+  let pending = cloneCache.get(key);
+  if (!pending) {
+    pending = (async () => {
+      const tempDir = await mkdtemp(join(tmpdir(), 'returnmytime-find-'));
+      registerTempDir(tempDir);
+      await cloneRepoTo(sourceUrl, tempDir, ref);
+      return tempDir;
+    })();
+    cloneCache.set(key, pending);
+  }
+  try {
+    return await pending;
+  } catch (error) {
+    cloneCache.delete(key);
+    throw error;
+  }
+}
+
+async function resolveSearchSource(source?: string): Promise<SearchContext | null> {
+  const trimmed = source?.trim();
+  if (!trimmed) return null;
+
+  const parsed = parseSource(trimmed);
+
+  if (parsed.type === 'local') {
+    if (!parsed.localPath || !existsSync(parsed.localPath) || !isLocalDirectory(parsed.localPath)) {
+      return null;
+    }
+    return {
+      repoPath: parsed.localPath,
+      repoOwner: null,
+      repoName: null,
+      sourceType: 'local',
+      sourceUrl: parsed.localPath,
+      source: parsed.localPath,
+    };
+  }
+
+  if (parsed.type !== 'github' && parsed.type !== 'gitlab' && parsed.type !== 'git') {
+    return null;
+  }
+
+  const repoPath = await getCachedClone(parsed.url, parsed.ref);
+  const ownerRepo = getOwnerRepo(parsed);
+  const [repoOwner, repoName] = ownerRepo ? ownerRepo.split('/') : [null, null];
+  return {
+    repoPath,
+    repoOwner,
+    repoName,
+    sourceType: parsed.type,
+    sourceUrl: parsed.url,
+    source: ownerRepo ?? parsed.url,
+    ref: parsed.ref,
+    subpath: parsed.subpath,
+  };
 }
 
 export async function searchSkillDirectory(
   query: string,
   mode: FindSkillMode,
-  limit = 10
+  limit = 10,
+  source?: string
 ): Promise<SearchOutcome> {
   const trimmed = query.trim();
   if (!trimmed) {
     return { mode, results: [], fallback: false };
   }
 
-  const localRepo = getLocalSkillsRepo();
-  if (localRepo) {
-    const results = await searchLocalSkills(localRepo, trimmed, limit);
+  const searchSource = source?.trim() || getDefaultSkillsSource();
+  let resolvedSource: SearchContext | null = null;
+  try {
+    resolvedSource = await resolveSearchSource(searchSource);
+  } catch {
+    resolvedSource = null;
+  }
+  if (resolvedSource) {
+    const results = await searchLocalSkills(resolvedSource, trimmed, limit);
     return { mode: 'lexical', results, fallback: mode === 'semantic' };
   }
 
@@ -183,10 +279,17 @@ export async function prepareSkillsFromSearchResults(
 
       skills.push(skill);
       const displayName = getSkillDisplayName(skill);
+      const hasRepo = Boolean(result.repoOwner && result.repoName);
+      const sourceType = hasRepo ? (result.sourceType ?? 'github') : 'local';
+      const sourceUrl = hasRepo
+        ? (result.sourceUrl ?? `https://github.com/${result.repoOwner}/${result.repoName}.git`)
+        : localRepoPath;
+      const source = hasRepo ? `${result.repoOwner}/${result.repoName}` : localRepoPath;
       originBySkillName.set(displayName, {
-        sourceType: 'local',
-        sourceUrl: localRepoPath,
-        source: localRepoPath,
+        sourceType,
+        sourceUrl,
+        source,
+        ref: result.ref,
         skillPath: ensureSkillMdPath(result.path),
       });
     }
