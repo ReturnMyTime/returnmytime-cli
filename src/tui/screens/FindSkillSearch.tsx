@@ -1,6 +1,7 @@
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import React from 'react';
+import { getDefaultSkillsSource } from '../../config.js';
 import { searchSkillDirectory } from '../../flows/find-skill.js';
 import { useNavigation } from '../context/navigation.js';
 import { useTextInput } from '../hooks/useTextInput.js';
@@ -21,13 +22,14 @@ function getDebounceMs(queryLength: number): number {
 }
 
 export function FindSkillSearchScreen() {
-  const { findSkill, updateFindSkill, navigateTo, setFlash } = useNavigation();
+  const { findSkill, updateFindSkill, navigateTo, setFlash, invocation } = useNavigation();
   const [value, setValue] = React.useState(findSkill.query ?? '');
   const [status, setStatus] = React.useState<'idle' | 'searching' | 'loading' | 'error'>('idle');
   const [error, setError] = React.useState<string | null>(null);
   const [preview, setPreview] = React.useState<FindSkillResult[]>([]);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const spinner = useSpinnerFrame(status === 'searching' || status === 'loading');
+  const searchSource = (invocation.source ?? getDefaultSkillsSource()).trim();
 
   const { wrapOnChange } = useTextInput({
     disabled: status === 'loading',
@@ -62,7 +64,7 @@ export function FindSkillSearchScreen() {
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const outcome = await searchSkillDirectory(trimmed, 'lexical', 5);
+        const outcome = await searchSkillDirectory(trimmed, 'lexical', 5, searchSource);
         setPreview(outcome.results);
         setStatus('idle');
       } catch {
@@ -97,7 +99,7 @@ export function FindSkillSearchScreen() {
 
     setStatus('loading');
     try {
-      const outcome = await searchSkillDirectory(query, 'lexical', 10);
+      const outcome = await searchSkillDirectory(query, 'lexical', 10, searchSource);
       updateFindSkill({
         query,
         mode: 'lexical',
@@ -137,7 +139,7 @@ export function FindSkillSearchScreen() {
     updateFindSkill({ query, mode: 'semantic', status: 'loading', error: undefined });
 
     try {
-      const outcome = await searchSkillDirectory(query, 'semantic', 10);
+      const outcome = await searchSkillDirectory(query, 'semantic', 10, searchSource);
       updateFindSkill({
         query,
         mode: outcome.mode,
@@ -190,6 +192,9 @@ export function FindSkillSearchScreen() {
             }
           }}
         />
+      </Box>
+      <Box marginTop={1}>
+        <Text dimColor>{`Source: ${searchSource}`}</Text>
       </Box>
 
       {/* Live preview of lexical results */}

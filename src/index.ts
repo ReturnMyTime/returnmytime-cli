@@ -81,8 +81,9 @@ function formatFindSkillMarkdown(query: string, outcome: SearchOutcome): string 
   for (const result of outcome.results.slice(0, 10)) {
     const description = result.shortDescription ?? result.description ?? '';
     const repo =
-      result.localRepoPath ??
-      (result.repoOwner && result.repoName ? `${result.repoOwner}/${result.repoName}` : null);
+      result.repoOwner && result.repoName
+        ? `${result.repoOwner}/${result.repoName}`
+        : (result.localRepoPath ?? null);
     const skillName = result.skillSlug ?? result.name;
     if (!repo || !skillName) {
       continue;
@@ -212,15 +213,19 @@ findCmd
   .command('skill [query]')
   .description('Find skills')
   .option('--semantic', 'Use semantic search (falls back to fast search)')
-  .action(async (query: string | undefined, options: { semantic?: boolean }) => {
+  .option('--source <source>', 'Search within a specific repo or path')
+  .action(async (query: string | undefined, options: { semantic?: boolean; source?: string }) => {
     if (!query) {
-      await launch({ intent: 'find-skill', options: {} }, 'find-skill-search');
+      await launch(
+        { intent: 'find-skill', source: options.source, options: {} },
+        'find-skill-search'
+      );
       return;
     }
 
     const mode = options.semantic ? 'semantic' : 'lexical';
     try {
-      const outcome = await searchSkillDirectory(query, mode, 10);
+      const outcome = await searchSkillDirectory(query, mode, 10, options.source);
       console.log(formatFindSkillMarkdown(query, outcome));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Search failed.';

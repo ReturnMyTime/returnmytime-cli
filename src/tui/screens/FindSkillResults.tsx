@@ -61,12 +61,18 @@ export function FindSkillResultsScreen() {
     try {
       const prepared = await prepareSkillsFromSearchResults(values);
       const localRepoPath = values[0]?.localRepoPath ?? null;
+      const repoOwner = values[0]?.repoOwner ?? null;
+      const repoName = values[0]?.repoName ?? null;
+      const hasRepo = Boolean(repoOwner && repoName);
+      const source =
+        hasRepo && repoOwner && repoName ? `${repoOwner}/${repoName}` : (localRepoPath ?? '');
       resetAddSkill();
       updateAddSkill({
-        source: localRepoPath ?? 'returnmytime.com/skills',
-        parsed: localRepoPath
-          ? { type: 'local', url: localRepoPath, localPath: localRepoPath }
-          : undefined,
+        source: source || undefined,
+        parsed:
+          localRepoPath && !hasRepo
+            ? { type: 'local', url: localRepoPath, localPath: localRepoPath }
+            : undefined,
         tempDir: prepared.tempDir,
         skills: prepared.skills,
         selectedSkills: prepared.skills,
